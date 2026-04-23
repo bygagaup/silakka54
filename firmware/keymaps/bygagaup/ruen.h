@@ -1,19 +1,24 @@
-// Copyright 2024
-// SPDX-License-Identifier: GPL-2.0-or-later
-
 #pragma once
 
-#include "quantum.h"
+#include QMK_KEYBOARD_H
+#include "keycodes.h"
 
-// Custom RuEn keycodes (Win+Space and Shift+Alt layout switchers)
-enum ruen_custom_keycodes {
-    RUEN_TOGGLE = QK_KB_0,        // Toggle EN/RU (Win+Space)
-    RUEN_SYNC,                    // Sync keyboard state only
-    RUEN_EN,                      // Force English (Win+Space)
-    RUEN_RU,                      // Force Russian (Win+Space)
-    RUEN_END,
-};
+enum { LANG_EN = 0, LANG_RU };
 
-enum { LANG_EN = 0, LANG_RU };  // Language states
+enum { TG_DEFAULT = 0, TG_M0, TG_M1M2 };
+
+bool pre_process_record_ruen(uint16_t keycode, keyrecord_t *record);
 
 bool process_record_ruen(uint16_t keycode, keyrecord_t *record);
+
+void housekeeping_task_ruen(void);
+
+uint8_t get_cur_lang(void);
+
+void set_ruen_toggle_mode(uint8_t mode);
+
+uint8_t get_ruen_toggle_mode(void);
+
+void set_ruen_mac_layout(bool mac_layout);
+
+bool get_ruen_mac_layout(void);
