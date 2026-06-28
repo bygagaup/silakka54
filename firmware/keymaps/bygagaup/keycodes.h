@@ -71,4 +71,13 @@ enum custom_keycodes {
 
     // end of ru en symbols range
     LG_END,
+
+    // macOS support: single toggle (Ctrl<->Cmd swap + RuEn mac punctuation) plus
+    // OS-aware system keys. Kept after LG_END so existing values stay stable.
+    MAC_TOGG,
+    U_SPC_L,
+    U_SPC_R,
+    U_TAB_L,
+    U_TAB_R,
+    U_SHOT,
 };

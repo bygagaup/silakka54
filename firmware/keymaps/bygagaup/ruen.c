@@ -21,19 +21,14 @@ void set_lang(uint8_t lang) {
         case TG_DEFAULT:
             if (cur_lang == lang) return;
             if (mods != 0) del_mods(mods);
-            if (keymap_config.swap_lctl_lgui) {
-                register_code(KC_LCTL);
-                tap_code(KC_SPACE);
-                wait_ms(50);
-                unregister_code(KC_LCTL);
-                wait_ms(50);
-            } else {
-                register_code(KC_LGUI);
-                tap_code(KC_SPACE);
-                wait_ms(50);
-                unregister_code(KC_LGUI);
-                wait_ms(50);
-            }
+            // Gui+Space switches input source on both macOS (Cmd+Space) and
+            // Windows/Linux (Super+Space). Emitted programmatically, so the
+            // Ctrl/Gui magic swap does NOT rewrite KC_LGUI -- it stays Cmd on mac.
+            register_code(KC_LGUI);
+            tap_code(KC_SPACE);
+            wait_ms(50);
+            unregister_code(KC_LGUI);
+            wait_ms(50);
             if (mods != 0) add_mods(mods);
             break;
         case TG_M0:

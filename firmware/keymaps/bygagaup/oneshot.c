@@ -55,3 +55,22 @@ void update_oneshot(
         }
     }
 }
+
+void post_process_oneshot(
+    oneshot_state *state,
+    uint16_t mod,
+    uint16_t keycode,
+    keyrecord_t *record
+) {
+    // By the time post_process runs, the queued mod has already been applied to
+    // this keypress's HID report. Release it now (on key-DOWN) so a rolled next
+    // key isn't caught by the mod -- e.g. typing "Ab" quickly no longer yields
+    // "AB". Only the queued (tap) state is consumed here; the held state is left
+    // to update_oneshot's key-up handling so holding still affects many keys.
+    if (record->event.pressed &&
+        *state == os_up_queued &&
+        !is_oneshot_ignored_key(keycode)) {
+        *state = os_up_unqueued;
+        unregister_code(mod);
+    }
+}

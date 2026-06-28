@@ -30,6 +30,9 @@
 #define TAB_L C(S(KC_TAB))
 #define TAB_R C(KC_TAB)
 
+#define UNDO C(KC_Z)
+#define REDO C(S(KC_Z))
+
 enum layers {
     _DEF,
     _NAV,
@@ -51,10 +54,10 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     ),
 
     [_NAV] = LAYOUT(
-        ___,  ___,          ___,           ___,         ___,          ___,                  ___,            ___,        ___,           ___,          ___,           ___,
-        ___,  SW_TAB,       SW_WIN,        TAB_L,       TAB_R,        KC_ESC,               ___,            LG_SET_EN,  LG_SET_RU,     LG_SYNC,      ___,           ___,
-        ___,  OS_CMD,       OS_ALT,        OS_CTRL,     OS_SHFT,      KC_TAB,               KC_LEFT,        KC_DOWN,    KC_UP,         KC_RIGHT,     ___,           ___,
-        ___,  SPACE_L,      SPACE_R,       DF(_GAM),    KC_PSCR,      KC_CAPS,              KC_HOME,        KC_PGUP,    KC_PGDN,       KC_END,       KC_NUM,        ___,
+        ___,  DF(_GAM),     ___,           ___,         ___,          ___,                  ___,            ___,        ___,           ___,          KC_CAPS,       ___,
+        ___,  SW_TAB,       SW_WIN,        U_TAB_L,     U_TAB_R,      KC_ESC,               ___,            LG_SET_EN,  LG_SET_RU,     LG_SYNC,      MAC_TOGG,      ___,
+        ___,  OS_CMD,       OS_ALT,        OS_CTRL,     OS_SHFT,      KC_TAB,               KC_LEFT,        KC_DOWN,    KC_UP,         KC_RIGHT,     KC_INS,        ___,
+        ___,  U_SPC_L,      U_SPC_R,       UNDO,        U_SHOT,       REDO,                 KC_HOME,        KC_PGUP,    KC_PGDN,       KC_END,       KC_NUM,        ___,
                                         _______,    _______,    _______,        _______,    KC_BSPC,  KC_DEL
     ),
 
@@ -152,6 +155,26 @@ oneshot_state os_ctrl_state = os_up_unqueued;
 oneshot_state os_alt_state = os_up_unqueued;
 oneshot_state os_cmd_state = os_up_unqueued;
 
+// Mac mode is driven by the persisted Ctrl/Gui magic swap.
+static inline bool is_mac(void) {
+    return keymap_config.swap_lctl_lgui;
+}
+
+// The Ctrl/Cmd one-shots are emitted programmatically (register_code), so the
+// magic Ctrl/Gui swap does NOT reach them. Mirror the swap here so that on mac
+// the "Ctrl" key drives Cmd shortcuts (Cmd+A, Cmd+C, ...) while the "Cmd" key
+// still gives a real Ctrl (Ctrl-click, terminal control chars). The same helper
+// must feed both register (update_oneshot) and unregister (post_process_oneshot),
+// or the mod gets stuck.
+static inline uint16_t os_ctrl_mod(void) { return is_mac() ? KC_LGUI : KC_LCTL; }
+static inline uint16_t os_cmd_mod(void)  { return is_mac() ? KC_LCTL : KC_LCMD; }
+
+void keyboard_post_init_user(void) {
+    // The swap itself is restored from EEPROM by bootmagic; mirror it into the
+    // RuEn mac-layout flag (which isn't persisted) so punctuation matches on boot.
+    set_ruen_mac_layout(keymap_config.swap_lctl_lgui);
+}
+
 bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
     return pre_process_record_ruen(keycode, record);
 }
@@ -171,7 +194,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         keycode, record
     );
     update_oneshot(
-        &os_ctrl_state, KC_LCTL, OS_CTRL,
+        &os_ctrl_state, os_ctrl_mod(), OS_CTRL,
         keycode, record
     );
     update_oneshot(
@@ -179,11 +202,54 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         keycode, record
     );
     update_oneshot(
-        &os_cmd_state, KC_LCMD, OS_CMD,
+        &os_cmd_state, os_cmd_mod(), OS_CMD,
         keycode, record
     );
 
+    // macOS support. These are emitted programmatically, so the Ctrl/Gui magic
+    // swap does NOT rewrite them -- we choose the exact combo per OS here.
+    switch (keycode) {
+        case MAC_TOGG:
+            if (record->event.pressed) {
+                // Release any in-flight Ctrl/Cmd one-shots under the CURRENT
+                // mapping before flipping, so they don't get unregistered with
+                // the post-flip mod and leave a modifier stuck.
+                if (os_ctrl_state != os_up_unqueued) { unregister_code(os_ctrl_mod()); os_ctrl_state = os_up_unqueued; }
+                if (os_cmd_state  != os_up_unqueued) { unregister_code(os_cmd_mod());  os_cmd_state  = os_up_unqueued; }
+                keymap_config.swap_lctl_lgui = !keymap_config.swap_lctl_lgui;
+                eeconfig_update_keymap(&keymap_config);
+                set_ruen_mac_layout(keymap_config.swap_lctl_lgui);
+            }
+            return false;
+
+        case U_SPC_L:  // switch desktop/space left
+            if (record->event.pressed) tap_code16(is_mac() ? C(KC_LEFT) : SPACE_L);
+            return false;
+        case U_SPC_R:  // switch desktop/space right
+            if (record->event.pressed) tap_code16(is_mac() ? C(KC_RGHT) : SPACE_R);
+            return false;
+
+        case U_TAB_L:  // previous browser tab -- stays Ctrl+Shift+Tab on mac
+            if (record->event.pressed) tap_code16(TAB_L);
+            return false;
+        case U_TAB_R:  // next browser tab -- stays Ctrl+Tab on mac
+            if (record->event.pressed) tap_code16(TAB_R);
+            return false;
+
+        case U_SHOT:   // screenshot
+            if (record->event.pressed) tap_code16(is_mac() ? LSFT(LGUI(KC_4)) : KC_PSCR);
+            return false;
+    }
+
     return process_record_ruen(keycode, record);
+}
+
+void post_process_record_user(uint16_t keycode, keyrecord_t *record) {
+    // Consume queued oneshot mods on key-down to avoid catching a rolled next key.
+    post_process_oneshot(&os_shft_state, KC_LSFT, keycode, record);
+    post_process_oneshot(&os_ctrl_state, os_ctrl_mod(), keycode, record);
+    post_process_oneshot(&os_alt_state, KC_LALT, keycode, record);
+    post_process_oneshot(&os_cmd_state, os_cmd_mod(), keycode, record);
 }
 
 void housekeeping_task_user(void) {

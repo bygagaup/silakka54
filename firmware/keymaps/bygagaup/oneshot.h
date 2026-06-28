@@ -21,6 +21,17 @@ void update_oneshot(
     keyrecord_t *record
 );
 
+// Releases a queued (tapped) oneshot mod on the next key's key-down instead of
+// its key-up, so a rolled-in following key isn't caught by the mod. Call from
+// post_process_record_user so the mod still applies to the triggering key's
+// report. Held oneshot mods are unaffected (handled by update_oneshot on keyup).
+void post_process_oneshot(
+    oneshot_state *state,
+    uint16_t mod,
+    uint16_t keycode,
+    keyrecord_t *record
+);
+
 // To be implemented by the consumer. Defines keys to cancel oneshot mods.
 bool is_oneshot_cancel_key(uint16_t keycode);
 
